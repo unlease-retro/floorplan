@@ -10,12 +10,17 @@
   "author": "Luke <luke@unlease.io> (https://www.unlease.io/)",
   "license": "Apache-2.0",
   "scripts": {
-    "start": "NODE_ENV=development node index.js",
+    "start": "per-env",
+    "start:development": "NODE_ENV=development node index.js",
+    "start:production": "node index.js",
     "deploy": "echo 'TODO'"
   },
   "devDependencies": {
     "jsonfile": "^2.4.0",
     "nightmare": "^2.8.1",
     "xml": "^1.0.1"
+  },
+  "dependencies": {
+    "per-env": "^1.0.2"
   }
 }
