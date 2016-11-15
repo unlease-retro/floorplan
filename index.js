@@ -1,10 +1,15 @@
-const jsonfile = require('jsonfile')
-const nightmare = require('nightmare')({ show: true, width: 1280 })
+const isDevelopment = process.env.NODE_ENV === 'development'
 
-const BASE_URL = { url: 'https://www.unlease.io/', depth: 0 }
+const fs = require('fs')
+const jsonfile = require('jsonfile')
+const nightmare = require('nightmare')({ show: !isDevelopment, width: 1280 })
+const xml = require('xml')
+
+const BASE_URL = { url: isDevelopment ? 'https://gitmoji.carloscuesta.me/' : 'https://www.unlease.io/', depth: 0 }
 const SORTED = true
 
 const JSON_OUTPUT = 'sitemap.json'
+const XML_OUTPUT = 'sitemap.xml'
 
 let found = [] // [ { url, depth } ]
 let queued = [] // [ { url, depth } ]
@@ -14,7 +19,8 @@ const getIsValidUrl = url => /^http|^mailto|^#|^\/$/.test(url)
 const getInternalUrl = url => url.replace(/^\//, BASE_URL.url).replace(/\/$/, '')
 const getSortedLinks = links => links.sort( ({ url: a }, { url: b }) => a < b ? -1 : a > b ? 1 : 0 )
 
-const writeOutput = () => jsonfile.writeFileSync(JSON_OUTPUT, SORTED && getSortedLinks(found) || found, { spaces: 2 })
+const writeJSONOutput = json => jsonfile.writeFileSync(JSON_OUTPUT, json, { spaces: 2 })
+const writeXMLOutput = xml => fs.writeFileSync(XML_OUTPUT, xml)
 
 const fetchUrl = ({ url, depth }) => {
 
@@ -55,11 +61,24 @@ const processLinks = (links, depth) => {
 
   if (queued.length) return fetchUrl( queued.shift() )
 
-  return writeOutput()
+  const output = SORTED && getSortedLinks(found) || found
+
+  return writeJSONOutput(output)
+
+}
+
+const generateXML = json => {
+
+  const urlset = json.map( j => ({ url: [ { loc: `${ BASE_URL.url }${ j.url.substring(1) }` } ] }) )
+
+  const output = xml([ { urlset } ], { indent: ' ', declaration: { encoding: 'UTF-8' } })
+
+  return writeXMLOutput(output)
 
 }
 
 fetchUrl(BASE_URL)
   .then( () => console.log('🍍  output done') )
   .then( () => nightmare.end() )
+  .then( () => generateXML(found) )
   .catch( err => console.error(err) )
