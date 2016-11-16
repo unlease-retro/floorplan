@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "sitemap generator",
   "main": "index.js",
+  "engines": {
+    "node": "~6.2.0"
+  },
   "repository": {
     "url": "https://github.com/unlease-development/floorplan.git",
     "type": "git"
@@ -13,7 +16,7 @@
     "start": "per-env",
     "start:development": "NODE_ENV=development node index.js",
     "start:production": "node index.js",
-    "deploy": "echo 'TODO'"
+    "deploy": "git push heroku master"
   },
   "dependencies": {
     "jsonfile": "^2.4.0",
