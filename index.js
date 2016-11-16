@@ -1,5 +1,6 @@
 const isDevelopment = process.env.NODE_ENV === 'development'
 
+const fetch = require('node-fetch')
 const fs = require('fs')
 const jsonfile = require('jsonfile')
 const nightmare = require('nightmare')({ show: isDevelopment, width: 1280 })
@@ -9,7 +10,7 @@ const xml = require('xml')
 
 const BASE_URL = { url: isDevelopment ? 'http://local.unlease.io:9000/' : 'https://www.unlease.io/', depth: 0 }
 const SORTED = true
-const SCHEDULE = isDevelopment ? '*/10 * * * * *' : '0 0 0 * * *'
+const SCHEDULE = '0 0 0 * * *'
 
 const JSON_OUTPUT = 'sitemap.json'
 const XML_OUTPUT = 'sitemap.xml'
@@ -20,6 +21,9 @@ const S3_REGION = 'eu-west-1'
 const S3_BUCKET = isDevelopment ? 'assets-staging.unlease.io' : 'assets.unlease.io'
 const S3_PATH = `static/seo/${XML_OUTPUT}`
 
+const SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/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'
+const SLACK_WEBHOOK_PAYLOAD = { channel: '#tech_team', username: 'floorplan', icon_emoji: ':world_map:' }
+
 const cache = {
   found: [], // [ { url, depth } ]
   queued: [], // [ { url, depth } ]
@@ -28,6 +32,19 @@ const cache = {
 
 const s3Client = s3.createClient({ s3Options: { accessKeyId: S3_ACCESS_KEY, secretAccessKey: S3_SECRET_KEY, region: S3_REGION } })
 const s3UploadParams = { localFile: XML_OUTPUT, s3Params: { Bucket: S3_BUCKET, Key: S3_PATH } }
+
+class FetchURLError extends Error {
+
+  constructor(code, url, msg='Could not fetch:') {
+
+    super(msg)
+
+    this.code = code
+    this.url = url
+
+  }
+
+}
 
 const getIsValidUrl = url => /^http|^mailto|^#|^\/$/.test(url)
 const getInternalUrl = url => url.replace(/^\//, BASE_URL.url).replace(/\/$/, '')
@@ -38,6 +55,8 @@ const writeXMLOutput = xml => fs.writeFileSync(XML_OUTPUT, xml)
 
 const resetCache = () => Object.keys(cache).map( c => cache[c].length = 0 )
 
+const sendErrorNotification = err => fetch(SLACK_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: '#tech_team', username: 'floorplan', icon_emoji: ':world_map:', text: `${err.code} ${err.message} ${err.url}` }) })
+
 const fetchUrl = ({ url, depth }) => {
 
   console.log(`🔫  ${url}`)
@@ -46,6 +65,14 @@ const fetchUrl = ({ url, depth }) => {
 
   return nightmare
     .goto(url)
+    .then( res => res.code !== 200 ? sendErrorNotification(new FetchURLError(res.code, url)) : res )
+    .then( () => extractLinks(nightmare, depth) )
+
+}
+
+const extractLinks = (nightmare, depth) => {
+
+  return nightmare
     .evaluate( () => Array.from(document.querySelectorAll('a')).map( a => ({ href: a.getAttribute('href') }) ) )
     .then( links => processLinks(links, depth) )
 
@@ -120,7 +147,13 @@ const mainProcess = () => {
     .then( () => console.log('✨  output done') )
     .then( () => uploadToS3() )
     .then( () => console.log('✨  upload done') )
-    .catch( err => console.error(err) )
+    .catch( err => {
+
+      console.error(`💥  ${err}`)
+
+      return sendErrorNotification(err)
+
+    })
 
 }
 
