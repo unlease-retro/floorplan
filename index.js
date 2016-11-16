@@ -2,12 +2,12 @@ const isDevelopment = process.env.NODE_ENV === 'development'
 
 const fs = require('fs')
 const jsonfile = require('jsonfile')
-const nightmare = require('nightmare')({ show: !isDevelopment, width: 1280 })
+const nightmare = require('nightmare')({ show: isDevelopment, width: 1280 })
 const s3 = require('s3')
 const schedule = require('node-schedule')
 const xml = require('xml')
 
-const BASE_URL = { url: isDevelopment ? 'https://gitmoji.carloscuesta.me/' : 'https://www.unlease.io/', depth: 0 }
+const BASE_URL = { url: isDevelopment ? 'http://local.unlease.io:9000/' : 'https://www.unlease.io/', depth: 0 }
 const SORTED = true
 const SCHEDULE = isDevelopment ? '*/10 * * * * *' : '0 0 0 * * *'
 
@@ -109,17 +109,19 @@ const uploadToS3 = () => {
 
 }
 
-const job = schedule.scheduleJob( SCHEDULE, () => {
+const mainProcess = () => {
 
-  resetCache()
+  if ( !isDevelopment ) resetCache()
 
-  fetchUrl(BASE_URL)
+  return fetchUrl(BASE_URL)
     .then( () => console.log('✨  scrape done') )
-    // .then( () => nightmare.end() )
+    .then( () => isDevelopment ? nightmare.end() : true )
     .then( () => generateXML(cache.found) )
     .then( () => console.log('✨  output done') )
     .then( () => uploadToS3() )
     .then( () => console.log('✨  upload done') )
     .catch( err => console.error(err) )
 
-})
+}
+
+const job = isDevelopment ? mainProcess() : schedule.scheduleJob( SCHEDULE, () => mainProcess() )
