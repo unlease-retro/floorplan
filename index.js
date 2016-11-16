@@ -3,6 +3,7 @@ const isDevelopment = process.env.NODE_ENV === 'development'
 const fs = require('fs')
 const jsonfile = require('jsonfile')
 const nightmare = require('nightmare')({ show: !isDevelopment, width: 1280 })
+const s3 = require('s3')
 const schedule = require('node-schedule')
 const xml = require('xml')
 
@@ -13,11 +14,20 @@ const SCHEDULE = isDevelopment ? '*/10 * * * * *' : '0 0 0 * * *'
 const JSON_OUTPUT = 'sitemap.json'
 const XML_OUTPUT = 'sitemap.xml'
 
+const S3_ACCESS_KEY = 'AKIAJJ33TA4LLJ7BCDLA'
+const S3_SECRET_KEY = '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'
+const S3_REGION = 'eu-west-1'
+const S3_BUCKET = isDevelopment ? 'assets-staging.unlease.io' : 'assets.unlease.io'
+const S3_PATH = `static/seo/${XML_OUTPUT}`
+
 const cache = {
   found: [], // [ { url, depth } ]
   queued: [], // [ { url, depth } ]
   finished: [], // [ url ]
 }
+
+const s3Client = s3.createClient({ s3Options: { accessKeyId: S3_ACCESS_KEY, secretAccessKey: S3_SECRET_KEY, region: S3_REGION } })
+const s3UploadParams = { localFile: XML_OUTPUT, s3Params: { Bucket: S3_BUCKET, Key: S3_PATH } }
 
 const getIsValidUrl = url => /^http|^mailto|^#|^\/$/.test(url)
 const getInternalUrl = url => url.replace(/^\//, BASE_URL.url).replace(/\/$/, '')
@@ -83,14 +93,33 @@ const generateXML = json => {
 
 }
 
+const uploadToS3 = () => {
+
+  return new Promise( (resolve, reject) => {
+
+    const s3Upload = s3Client.uploadFile(s3UploadParams)
+
+    // s3Upload.on( 'progress', () => console.log('progress', s3Upload.progressAmount, s3Upload.progressTotal) )
+
+    s3Upload.on( 'error', err => reject(err) )
+
+    s3Upload.on( 'end', () => resolve() )
+
+  })
+
+}
+
 const job = schedule.scheduleJob( SCHEDULE, () => {
 
   resetCache()
 
   fetchUrl(BASE_URL)
-    .then( () => console.log('✨  output done') )
+    .then( () => console.log('✨  scrape done') )
     // .then( () => nightmare.end() )
     .then( () => generateXML(cache.found) )
+    .then( () => console.log('✨  output done') )
+    .then( () => uploadToS3() )
+    .then( () => console.log('✨  upload done') )
     .catch( err => console.error(err) )
 
 })
