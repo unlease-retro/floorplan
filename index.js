@@ -6,7 +6,16 @@ const jsonfile = require('jsonfile')
 const nightmare = require('nightmare')({ show: isDevelopment, width: 1280 })
 const s3 = require('s3')
 const schedule = require('node-schedule')
+const winston = require('winston')
 const xml = require('xml')
+
+// logging
+winston.configure({
+  transports: [
+    new (winston.transports.Console)(),
+    new (winston.transports.File)({ filename: 'floorplan.log' }),
+  ]
+})
 
 const BASE_URL = { url: isDevelopment ? 'http://local.unlease.io:9000/' : 'https://www.unlease.io/', depth: 0 }
 const SORTED = true
@@ -59,7 +68,7 @@ const sendErrorNotification = err => fetch(SLACK_WEBHOOK_URL, { method: 'POST', 
 
 const fetchUrl = ({ url, depth }) => {
 
-  console.log(`🔫  ${url}`)
+  winston.info(`🔫  ${url}`)
 
   cache.finished.push(url)
 
@@ -92,7 +101,7 @@ const processLinks = (links, depth) => {
 
       let nextDepth = depth + 1
 
-      console.log(`🔍  ${internal}`)
+      winston.info(`🔍  ${internal}`)
 
       cache.found.push({ url: href, depth: nextDepth })
 
@@ -126,7 +135,7 @@ const uploadToS3 = () => {
 
     const s3Upload = s3Client.uploadFile(s3UploadParams)
 
-    // s3Upload.on( 'progress', () => console.log('progress', s3Upload.progressAmount, s3Upload.progressTotal) )
+    // s3Upload.on( 'progress', () => winston.info('progress', s3Upload.progressAmount, s3Upload.progressTotal) )
 
     s3Upload.on( 'error', err => reject(err) )
 
@@ -136,20 +145,22 @@ const uploadToS3 = () => {
 
 }
 
-const mainProcess = () => {
+const runFloorplan = () => {
+
+  winston.info(`🏃  RUN @ ${BASE_URL.url}`)
 
   if ( !isDevelopment ) resetCache()
 
   return fetchUrl(BASE_URL)
-    .then( () => console.log('✨  scrape done') )
+    .then( () => winston.info('✨  SCRAPE done') )
     .then( () => isDevelopment ? nightmare.end() : true )
     .then( () => generateXML(cache.found) )
-    .then( () => console.log('✨  output done') )
+    .then( () => winston.info('✨  OUTPUT done') )
     .then( () => uploadToS3() )
-    .then( () => console.log('✨  upload done') )
+    .then( () => winston.info('✨  UPLOAD done') )
     .catch( err => {
 
-      console.error(`💥  ${err}`)
+      winston.error(`💥  ${err}`)
 
       return sendErrorNotification(err)
 
@@ -157,4 +168,19 @@ const mainProcess = () => {
 
 }
 
-const job = isDevelopment ? mainProcess() : schedule.scheduleJob( SCHEDULE, () => mainProcess() )
+const scheduleFloorplan = () => {
+
+  winston.info(`⏰  SCHEDULE : ${SCHEDULE}`)
+
+  return schedule.scheduleFloorplan( SCHEDULE, () => runFloorplan() )
+
+}
+
+const init = (() => {
+
+  winston.info('🗺  F L O O R P L A N')
+
+  // START JOB -> dev mode ? run once : schedule
+  return isDevelopment ? runFloorplan() : scheduleFloorplan()
+
+})()
