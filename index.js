@@ -172,7 +172,7 @@ const scheduleFloorplan = () => {
 
   winston.info(`⏰  SCHEDULE : ${SCHEDULE}`)
 
-  return schedule.scheduleFloorplan( SCHEDULE, () => runFloorplan() )
+  return schedule.scheduleJob( SCHEDULE, () => runFloorplan() )
 
 }
 
