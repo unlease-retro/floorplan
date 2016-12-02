@@ -8,6 +8,7 @@ const s3 = require('s3')
 const schedule = require('node-schedule')
 const winston = require('winston')
 const xml = require('xml')
+const argv = require('yargs').argv
 
 // logging
 winston.configure({
@@ -181,6 +182,6 @@ const init = (() => {
   winston.info('🗺  F L O O R P L A N')
 
   // START JOB -> dev mode ? run once : schedule
-  return isDevelopment ? runFloorplan() : scheduleFloorplan()
+  return isDevelopment || argv.force ? runFloorplan() : scheduleFloorplan()
 
 })()
