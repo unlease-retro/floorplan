@@ -15,7 +15,7 @@
   "scripts": {
     "start": "per-env",
     "start:development": "NODE_ENV=development node index.js",
-    "start:production": "screen -S floorplan xvfb-run -a node index.js"
+    "start:production": "screen -S floorplan xvfb-run --server-args=\"-screen 0 1024x768x24\" -a node index.js"
   },
   "dependencies": {
     "jsonfile": "^2.4.0",
