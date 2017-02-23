@@ -75,7 +75,7 @@ const fetchUrl = ({ url, depth }) => {
 
   return nightmare
     .goto(url)
-    .then( res => res.code !== 200 ? sendErrorNotification(new FetchURLError(res.code, url)) : res )
+    .then( res => !res || res.code !== 200 ? sendErrorNotification(new FetchURLError(res && res.code || 500, url)) : res )
     .then( () => extractLinks(nightmare, depth) )
 
 }
@@ -154,7 +154,7 @@ const runFloorplan = () => {
 
   return fetchUrl(BASE_URL)
     .then( () => winston.info('✨  SCRAPE done') )
-    .then( () => isDevelopment ? nightmare.end() : true )
+    .then( () => nightmare.end() )
     .then( () => generateXML(cache.found) )
     .then( () => winston.info('✨  OUTPUT done') )
     .then( () => uploadToS3() )
