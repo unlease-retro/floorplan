@@ -3,7 +3,7 @@ const isDevelopment = process.env.NODE_ENV === 'development'
 const fetch = require('node-fetch')
 const fs = require('fs')
 const jsonfile = require('jsonfile')
-const nightmare = require('nightmare')({ show: isDevelopment, width: 1280 })
+const Nightmare = require('nightmare')
 const s3 = require('s3')
 const schedule = require('node-schedule')
 const winston = require('winston')
@@ -69,6 +69,8 @@ const sendErrorNotification = err => fetch(SLACK_WEBHOOK_URL, { method: 'POST', 
 
 const fetchUrl = ({ url, depth }) => {
 
+  const nightmare = Nightmare({ show: isDevelopment, width: 1280 })
+
   winston.info(`🔫  ${url}`)
 
   cache.finished.push(url)
@@ -84,6 +86,7 @@ const extractLinks = (nightmare, depth) => {
 
   return nightmare
     .evaluate( () => Array.from(document.querySelectorAll('a')).map( a => ({ href: a.getAttribute('href') }) ) )
+    .end()
     .then( links => processLinks(links, depth) )
 
 }
@@ -154,7 +157,6 @@ const runFloorplan = () => {
 
   return fetchUrl(BASE_URL)
     .then( () => winston.info('✨  SCRAPE done') )
-    .then( () => nightmare.end() )
     .then( () => generateXML(cache.found) )
     .then( () => winston.info('✨  OUTPUT done') )
     .then( () => uploadToS3() )
